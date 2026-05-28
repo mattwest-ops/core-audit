@@ -229,7 +229,10 @@ export default function CoreAuditTool() {
       setLoadingMsg(LOADING_MESSAGES[idx]);
     }, 3000);
     try {
-      const res = await fetch("/api/audit", {
+      const userMsg = `Audit this PT/chiro practice:\nName: ${form.name}\nLocation: ${form.location}\nWebsite: ${form.website || "unknown — search for it"}\n\nSearch GBP, reviews, website, local rankings, top local competitors. Score all 5 categories on what you actually find.`;
+
+      // Turn 1 — let the model search and reason freely
+      const res1 = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -237,12 +240,29 @@ export default function CoreAuditTool() {
           max_tokens: 2000,
           system: SYSTEM_PROMPT,
           tools: [{ type:"web_search_20250305", name:"web_search" }],
-          messages: [{ role:"user", content:
-            `Audit this PT/chiro practice:\nName: ${form.name}\nLocation: ${form.location}\nWebsite: ${form.website || "unknown — search for it"}\n\nSearch GBP, reviews, website, local rankings, top local competitors. Score all 5 categories on what you actually find.`
-          }],
+          messages: [{ role:"user", content: userMsg }],
         }),
       });
-      const data = await res.json();
+      const data1 = await res1.json();
+      if (data1.error) throw new Error(data1.error.message || "API error");
+
+      // Turn 2 — pass full response back and demand only JSON
+      const res2 = await fetch("/api/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1500,
+          system: SYSTEM_PROMPT,
+          tools: [{ type:"web_search_20250305", name:"web_search" }],
+          messages: [
+            { role:"user", content: userMsg },
+            { role:"assistant", content: data1.content },
+            { role:"user", content: "Now output ONLY the JSON object with your scores. No prose, no explanation, no markdown. Start with { and end with }." },
+          ],
+        }),
+      });
+      const data = await res2.json();
       clearInterval(interval);
       if (data.error) throw new Error(data.error.message || "API error");
       const text  = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
