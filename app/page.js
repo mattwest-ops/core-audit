@@ -21,68 +21,52 @@ const scoreColor  = p => p >= 70 ? B.green : p >= 40 ? B.amber : B.red;
 const scoreLabel  = p => p >= 70 ? "STRONG" : p >= 40 ? "OPPORTUNITY" : "CRITICAL GAP";
 const totalScore  = r => r ? Object.values(r.scores).reduce((s,c) => s + c.score, 0) : 0;
 
-const SYSTEM_PROMPT = `You are a pre-call research analyst for Stoke Foundry, a local business growth agency. Before a sales call, you audit a local business's digital presence so the salesperson can open with specific, credible observations.
+const SYSTEM_PROMPT = `You are a pre-call research analyst for Stoke Foundry. Audit a local business's Google presence using web search, then call the submit_audit tool with your findings. Do not narrate or explain — just search, score, and call the tool.
 
-C.O.R.E. System delivers:
-- CAPTURE: Google Business Profile optimization + Google Search Ads (high-intent local keywords)
-- OPTIMIZE: GHL automations — instant lead response (<60 sec), appointment reminders, missed call text-back
-- RETAIN: Dormant customer reactivation via SMS + email sequences
-- ENHANCE: Monthly Revenue Review — performance data, one insight, one recommendation
+C.O.R.E. delivers: CAPTURE (GBP optimization + Google Ads) | OPTIMIZE (GHL automations) | RETAIN (SMS/email reactivation) | ENHANCE (Monthly Revenue Review). Applies to any local service business.
 
-This framework applies to ANY local service business — healthcare, education, home services, fitness, legal, dental, childcare, and more.
+ONLY reference Google. Never mention Yelp, Facebook, Healthgrades, or other platforms.
 
-IMPORTANT: Only reference Google. Do NOT mention Yelp, Facebook, or any other platform. The C.O.R.E. system works exclusively through Google (GBP + Google Ads). All findings and recommendations must map to something C.O.R.E. can fix. The call hook must be Google-specific.
+SCORING — apply mechanically:
 
-Score these 5 categories (0-20 each). Apply criteria mechanically.
+GBP (start 20): -5 unclaimed, -3 <10 photos, -3 no posts 60 days, -3 thin description, -2 no hours, -2 no Q&A. Floor 0.
 
-CATEGORY 1 — GBP Presence & Health (CAPTURE)
-Search their Google Business Profile. Start at 20:
-- Subtract 5 if unclaimed or unverified
-- Subtract 3 if fewer than 10 photos
-- Subtract 3 if no Google posts in last 60 days
-- Subtract 3 if services or description missing/thin
-- Subtract 2 if hours missing or outdated
-- Subtract 2 if Q&A empty
-Floor: 0. Report exact subtractions.
+REVIEWS (Google only): 0-9=4, 10-24=8, 25-49=11, 50-99=14, 100+=17. +2 if 4.5+, -2 if <4.0. +1 owner responds, -1 no responses. Cap 20.
 
-CATEGORY 2 — Review Authority (CAPTURE)
-Google reviews ONLY. Base score by count:
-- 0–9: 4 | 10–24: 8 | 25–49: 11 | 50–99: 14 | 100+: 17
-Adjust: +2 if rating 4.5+, -2 if below 4.0
-Adjust: +1 if owner responds, -1 if no responses
-Cap 20, floor 0. State exact count and rating.
+VISIBILITY: search "[location] [type]" and "[location] [service]". Local Pack 2+ searches=16-20, 1 search=10-14, page 1 only=6-9, not visible=0-5.
 
-CATEGORY 3 — Search Visibility (CAPTURE)
-Search "[location] [business type]" and "[location] [primary service]". Score:
-- Local Pack for 2+ searches: 16-20
-- Local Pack for 1 search: 10-14
-- Page 1 organic only: 6-9
-- Not visible: 0-5
-State searches run and where they appeared.
+WEBSITE (start 20): -5 no CTA, -4 no booking form, -4 not mobile, -3 no trust signals, -2 slow/outdated. Floor 0.
 
-CATEGORY 4 — Website Conversion (OPTIMIZE)
-Start at 20:
-- Subtract 5 if no clear CTA above fold
-- Subtract 4 if no booking/contact form
-- Subtract 4 if not mobile-optimized
-- Subtract 3 if no trust signals
-- Subtract 2 if slow or outdated
-Floor: 0.
+COMPETITIVE: name top 2-3 competitors ahead in local search. Check for Sponsored ads. In Pack+no ads=15-18, In Pack+ads=10-14, Not in Pack+no ads=6-9, Not in Pack+ads=0-5.
 
-CATEGORY 5 — Competitive Gap (ENHANCE)
-Search local terms. Name top 2-3 competitors ranking ahead. Check for Google Ads (Sponsored). Score:
-- In Local Pack, no competitor ads: 15-18
-- In Local Pack, competitors running ads: 10-14
-- Not in Local Pack, no ads: 6-9
-- Not in Local Pack, competitors running ads: 0-5
-Name competitors. State ad presence.
+Run max 3 searches then call submit_audit immediately.`;
 
-CALL HOOK: one sentence, specific Google-observable fact, tied to something C.O.R.E. fixes. No non-Google platforms.
-
-Be specific. Real names, real numbers. Score low if data unavailable.
-
-Output ONLY raw JSON. No prose. No markdown. Start with { end with }:
-{"businessName":"...","location":"...","auditDate":"...","summary":"2-3 sentences on overall Google presence","callHook":"1 Google-specific sentence to open the call with","scores":{"gbp":{"score":0,"findings":["f1","f2","f3"],"recommendation":"what C.O.R.E. CAPTURE fixes here"},"reviews":{"score":0,"findings":["exact Google review count and rating","recency","owner response pattern"],"recommendation":"what C.O.R.E. CAPTURE fixes here"},"visibility":{"score":0,"findings":["searches run and results","searches run and results","Local Pack status"],"recommendation":"what C.O.R.E. CAPTURE fixes here"},"conversion":{"score":0,"findings":["f1","f2","f3"],"recommendation":"what C.O.R.E. OPTIMIZE fixes here"},"competitive":{"score":0,"findings":["competitor 1 name and advantage","competitor 2 name and advantage","ad presence"],"recommendation":"what C.O.R.E. would do to close this gap"}}}`;
+const AUDIT_TOOL = {
+  name: "submit_audit",
+  description: "Submit the completed audit with all scores and findings",
+  input_schema: {
+    type: "object",
+    required: ["businessName","location","auditDate","summary","callHook","scores"],
+    properties: {
+      businessName: { type: "string" },
+      location: { type: "string" },
+      auditDate: { type: "string" },
+      summary: { type: "string", description: "2-3 sentences on overall Google presence" },
+      callHook: { type: "string", description: "1 Google-specific sentence to open the call with" },
+      scores: {
+        type: "object",
+        required: ["gbp","reviews","visibility","conversion","competitive"],
+        properties: {
+          gbp:         { type:"object", required:["score","findings","recommendation"], properties:{ score:{type:"integer",minimum:0,maximum:20}, findings:{type:"array",items:{type:"string"},minItems:3,maxItems:3}, recommendation:{type:"string"} } },
+          reviews:     { type:"object", required:["score","findings","recommendation"], properties:{ score:{type:"integer",minimum:0,maximum:20}, findings:{type:"array",items:{type:"string"},minItems:3,maxItems:3}, recommendation:{type:"string"} } },
+          visibility:  { type:"object", required:["score","findings","recommendation"], properties:{ score:{type:"integer",minimum:0,maximum:20}, findings:{type:"array",items:{type:"string"},minItems:3,maxItems:3}, recommendation:{type:"string"} } },
+          conversion:  { type:"object", required:["score","findings","recommendation"], properties:{ score:{type:"integer",minimum:0,maximum:20}, findings:{type:"array",items:{type:"string"},minItems:3,maxItems:3}, recommendation:{type:"string"} } },
+          competitive: { type:"object", required:["score","findings","recommendation"], properties:{ score:{type:"integer",minimum:0,maximum:20}, findings:{type:"array",items:{type:"string"},minItems:3,maxItems:3}, recommendation:{type:"string"} } },
+        }
+      }
+    }
+  }
+};
 
 // ── Leave-behind HTML ─────────────────────────────────────────────────────────
 function buildLeaveBehindHTML(r) {
@@ -117,47 +101,46 @@ function buildLeaveBehindHTML(r) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>C.O.R.E. Audit — ${r.practiceName}</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#fff;color:#1a1a1a;font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.6;padding:40px 48px;max-width:820px;margin:0 auto}
 @media print{.no-print{display:none!important} body{padding:24px 32px}}
-.print-btn{display:block;margin:0 auto 28px;background:#B7860B;color:#fff;border:none;border-radius:6px;padding:11px 28px;font-family:'Poppins',sans-serif;font-size:12px;letter-spacing:1px;font-weight:600;cursor:pointer}
+.print-btn{display:block;margin:0 auto 28px;background:#B7860B;color:#fff;border:none;border-radius:6px;padding:11px 28px;font-family:'DM Sans',sans-serif;font-size:12px;letter-spacing:1px;font-weight:600;cursor:pointer}
 .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:2px solid #0A0A0A;margin-bottom:24px}
 .brand{display:flex;align-items:center;gap:10px}
 .brand-sq{width:34px;height:34px;background:#B7860B;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:#fff}
 .brand-name{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px}
-.brand-sub{font-family:'Poppins',sans-serif;font-size:9px;letter-spacing:1.5px;color:#888;margin-top:1px}
-.report-lbl{font-family:'Poppins',sans-serif;font-size:9px;letter-spacing:2px;color:#888;text-align:right}
-.report-date{font-family:'Poppins',sans-serif;font-size:11px;color:#444;text-align:right;margin-top:2px}
+.brand-sub{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:1.5px;color:#888;margin-top:1px}
+.report-lbl{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:2px;color:#888;text-align:right}
+.report-date{font-family:'DM Sans',sans-serif;font-size:11px;color:#444;text-align:right;margin-top:2px}
 .hero{background:#0A0A0A;border-radius:8px;padding:24px 28px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
 .practice-name{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:#F5F5F0;margin-bottom:3px}
 .practice-loc{font-size:12px;color:#888;margin-bottom:12px}
 .summary{font-size:12px;color:#AAAAAA;line-height:1.7;max-width:380px;margin-bottom:12px}
-.hook{background:#B7860B22;border:1px solid #B7860B44;border-radius:6px;padding:10px 13px;font-size:12px;color:#D4A017;line-height:1.6;max-width:380px}
-.hook-lbl{font-family:'Poppins',sans-serif;font-size:8px;letter-spacing:2px;display:block;margin-bottom:3px;opacity:.7}
+
 .score-num{font-family:'Syne',sans-serif;font-weight:800;font-size:40px;line-height:1}
-.score-sub{font-family:'Poppins',sans-serif;font-size:10px;color:#555;margin-top:2px}
-.score-lbl-hero{font-family:'Poppins',sans-serif;font-size:9px;letter-spacing:2px;margin-top:4px}
+.score-sub{font-family:'DM Sans',sans-serif;font-size:10px;color:#555;margin-top:2px}
+.score-lbl-hero{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:2px;margin-top:4px}
 .cat{background:#f9f9f7;border:1px solid #e8e8e4;border-radius:7px;padding:16px 18px;margin-bottom:8px}
 .cat-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .cat-title-wrap{flex:1}
 .cat-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;display:block}
-.phase-tag{font-family:'Poppins',sans-serif;font-size:8px;letter-spacing:1px;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:3px}
+.phase-tag{font-family:'DM Sans',sans-serif;font-size:8px;letter-spacing:1px;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:3px}
 .cat-score-wrap{text-align:right}
 .cat-score{font-family:'Syne',sans-serif;font-weight:800;font-size:18px}
 .denom{font-size:10px;color:#888;font-weight:400}
-.cat-lbl{font-family:'Poppins',sans-serif;font-size:8px;letter-spacing:1.5px;display:block;margin-top:1px}
+.cat-lbl{font-family:'DM Sans',sans-serif;font-size:8px;letter-spacing:1.5px;display:block;margin-top:1px}
 .bar-bg{height:2px;background:#e0e0da;border-radius:2px;margin-bottom:10px;overflow:hidden}
 .bar-fill{height:100%;border-radius:2px}
 ul{padding-left:16px;margin-bottom:10px}
 li{font-size:12px;color:#555;line-height:1.6;margin-bottom:3px}
 .rec{padding:9px 12px;background:#f0f0ec;border-radius:0 4px 4px 0;font-size:12px;color:#333;line-height:1.6}
-.rec-lbl{font-family:'Poppins',sans-serif;font-size:8px;letter-spacing:2px;display:block;margin-bottom:4px}
+.rec-lbl{font-family:'DM Sans',sans-serif;font-size:8px;letter-spacing:2px;display:block;margin-bottom:4px}
 .footer{margin-top:24px;padding-top:18px;border-top:1px solid #e0e0da;display:flex;justify-content:space-between;align-items:center}
 .footer-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
-.footer-sub{font-family:'Poppins',sans-serif;font-size:9px;color:#888;letter-spacing:1px;margin-top:1px}
-.footer-right{font-family:'Poppins',sans-serif;font-size:9px;color:#aaa;text-align:right}
+.footer-sub{font-family:'DM Sans',sans-serif;font-size:9px;color:#888;letter-spacing:1px;margin-top:1px}
+.footer-right{font-family:'DM Sans',sans-serif;font-size:9px;color:#aaa;text-align:right}
 </style></head><body>
 <button class="print-btn no-print" onclick="window.print()">⬇ Save as PDF</button>
 <div class="header">
@@ -172,7 +155,6 @@ li{font-size:12px;color:#555;line-height:1.6;margin-bottom:3px}
     <div class="practice-name">${r.businessName || r.practiceName}</div>
     <div class="practice-loc">📍 ${r.location}</div>
     <div class="summary">${r.summary}</div>
-    <div class="hook"><span class="hook-lbl">CALL HOOK</span>📞 ${r.callHook}</div>
   </div>
   <div style="text-align:center;min-width:90px">
     <div class="score-num" style="color:${col}">${t}</div>
@@ -232,19 +214,23 @@ export default function CoreAuditTool() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
-          max_tokens: 1500,
+          max_tokens: 2000,
           system: SYSTEM_PROMPT,
-          tools: [{ type:"web_search_20250305", name:"web_search", max_uses: 3 }],
+          tools: [
+            { type:"web_search_20250305", name:"web_search" },
+            AUDIT_TOOL,
+          ],
+          tool_choice: { type:"any" },
           messages: [{ role:"user", content: userMsg }],
         }),
       });
       const data = await res.json();
       clearInterval(interval);
       if (data.error) throw new Error(data.error.message || "API error");
-      const text  = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
-      const match = text.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("No JSON in response. Got: " + text.slice(0,120));
-      setResults(JSON.parse(match[0]));
+      // Extract the submit_audit tool call input
+      const toolUse = (data.content||[]).find(b => b.type==="tool_use" && b.name==="submit_audit");
+      if (!toolUse) throw new Error("Audit tool not called. Response: " + JSON.stringify(data.content||[]).slice(0,200));
+      setResults(toolUse.input);
       setStage("results");
     } catch(err) {
       clearInterval(interval);
@@ -303,21 +289,21 @@ export default function CoreAuditTool() {
     <button onClick={onClick} style={{ background:"transparent",
       border:`1px solid ${B.border}`, color:B.muted, padding:"8px 18px",
       borderRadius:"5px", cursor:"pointer",
-      fontFamily:"'Poppins',sans-serif", fontSize:"11px", letterSpacing:"1px",
+      fontFamily:"'DM Sans',sans-serif", fontSize:"11px", letterSpacing:"1px",
       ...style }}>{children}</button>
   );
 
   const GoldBtn = ({ onClick, children }) => (
     <button onClick={onClick} style={{ background:B.gold, border:"none",
       color:B.black, padding:"9px 20px", borderRadius:"5px", cursor:"pointer",
-      fontFamily:"'Poppins',sans-serif", fontSize:"11px",
+      fontFamily:"'DM Sans',sans-serif", fontSize:"11px",
       letterSpacing:"1px", fontWeight:600 }}>{children}</button>
   );
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Poppins:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&display=swap');
         *{box-sizing:border-box} body{margin:0} ::placeholder{color:#444440}
         @keyframes spin   { to{transform:rotate(360deg)} }
         @keyframes pulse  { 0%,100%{opacity:.3} 50%{opacity:1} }
@@ -339,7 +325,7 @@ export default function CoreAuditTool() {
             <div>
               <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700,
                 fontSize:"13px", letterSpacing:"2px" }}>C.O.R.E. SYSTEM™</div>
-              <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"9px",
+              <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px",
                 color:B.muted, letterSpacing:"1.5px" }}>
                 PROSPECT READINESS AUDIT · STOKE FOUNDRY</div>
             </div>
@@ -363,7 +349,7 @@ export default function CoreAuditTool() {
         {showHistory && (
           <div style={{ background:B.dark, borderBottom:`1px solid ${B.border}`,
             padding:"20px 28px" }}>
-            <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"10px",
+            <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"10px",
               letterSpacing:"2px", color:B.muted, marginBottom:"14px" }}>SAVED AUDITS</div>
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               {savedAudits.map(entry => {
@@ -376,7 +362,7 @@ export default function CoreAuditTool() {
                     <div style={{ flex:1 }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:600,
                         fontSize:"14px" }}>{entry.data.practiceName}</div>
-                      <div style={{ fontFamily:"'Poppins',sans-serif",
+                      <div style={{ fontFamily:"'DM Sans',sans-serif",
                         fontSize:"10px", color:B.muted, marginTop:"2px" }}>
                         {entry.data.location} · {entry.savedAt}</div>
                     </div>
@@ -384,7 +370,7 @@ export default function CoreAuditTool() {
                       fontSize:"18px", color:scoreColor(p) }}>
                       {entry.total}<span style={{ fontSize:"11px",
                         color:B.muted, fontWeight:400 }}>/100</span></div>
-                    <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"9px",
+                    <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px",
                       color:scoreColor(p), letterSpacing:"1px" }}>{scoreLabel(p)}</div>
                     <button onClick={e => { e.stopPropagation(); deleteSavedAudit(entry.id); }}
                       style={{ background:"transparent", border:"none",
@@ -416,7 +402,7 @@ export default function CoreAuditTool() {
                 { key:"website",  label:"WEBSITE",       placeholder:"southbaypt.com  (optional)",  req:false },
               ].map(({ key, label, placeholder, req }) => (
                 <div key={key}>
-                  <label style={{ display:"block", fontFamily:"'Poppins',sans-serif",
+                  <label style={{ display:"block", fontFamily:"'DM Sans',sans-serif",
                     fontSize:"10px", letterSpacing:"2px", color:B.gold, marginBottom:"7px" }}>
                     {label}{req && <span style={{ color:B.red }}> *</span>}
                   </label>
@@ -438,12 +424,12 @@ export default function CoreAuditTool() {
                 border:"none", borderRadius:"6px",
                 color:(!form.name||!form.location) ? B.muted : B.black,
                 padding:"15px 24px", fontSize:"13px", letterSpacing:"2px",
-                fontFamily:"'Poppins',sans-serif", fontWeight:600,
+                fontFamily:"'DM Sans',sans-serif", fontWeight:600,
                 cursor:(!form.name||!form.location) ? "not-allowed" : "pointer",
               }}>RUN C.O.R.E. AUDIT →</button>
             </div>
             <div style={{ marginTop:"48px", paddingTop:"28px", borderTop:`1px solid ${B.border}` }}>
-              <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"10px",
+              <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"10px",
                 letterSpacing:"2px", color:B.muted, marginBottom:"14px" }}>SCORING RUBRIC</div>
               {RUBRIC.map(cat => (
                 <div key={cat.id} style={{ display:"flex", alignItems:"center", gap:"12px",
@@ -453,7 +439,7 @@ export default function CoreAuditTool() {
                     <div style={{ fontSize:"13px", fontWeight:500 }}>{cat.label}</div>
                     <div style={{ fontSize:"11px", color:B.muted, marginTop:"2px" }}>{cat.desc}</div>
                   </div>
-                  <span style={{ fontFamily:"'Poppins',sans-serif", fontSize:"9px",
+                  <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px",
                     letterSpacing:"1px", color:PHASE_COLOR[cat.phase],
                     background:PHASE_COLOR[cat.phase]+"18",
                     padding:"2px 7px", borderRadius:"3px" }}>{cat.phase}</span>
@@ -518,7 +504,7 @@ export default function CoreAuditTool() {
               <div style={{ display:"flex", alignItems:"flex-start",
                 justifyContent:"space-between", flexWrap:"wrap", gap:"24px" }}>
                 <div style={{ flex:1, minWidth:"220px" }}>
-                  <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"9px",
+                  <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px",
                     letterSpacing:"2px", color:B.muted, marginBottom:"7px" }}>
                     AUDIT REPORT · {results.auditDate || new Date().toLocaleDateString()}</div>
                   <h2 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700,
@@ -530,7 +516,7 @@ export default function CoreAuditTool() {
                   <div style={{ background:B.goldFade, border:`1px solid ${B.gold}30`,
                     borderRadius:"7px", padding:"11px 14px",
                     fontSize:"13px", color:B.goldLight, lineHeight:1.6, maxWidth:"400px" }}>
-                    <span style={{ fontFamily:"'Poppins',sans-serif", fontSize:"8px",
+                    <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"8px",
                       letterSpacing:"2px", display:"block", marginBottom:"4px", opacity:.7 }}>
                       CALL HOOK</span>
                     📞 {results.callHook}
@@ -553,11 +539,11 @@ export default function CoreAuditTool() {
                       flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800,
                         fontSize:"28px", color:scoreColor(pct), lineHeight:1 }}>{t}</div>
-                      <div style={{ fontFamily:"'Poppins',sans-serif",
+                      <div style={{ fontFamily:"'DM Sans',sans-serif",
                         fontSize:"9px", color:B.muted }}>/100</div>
                     </div>
                   </div>
-                  <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"9px",
+                  <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px",
                     letterSpacing:"2px", color:scoreColor(pct), fontWeight:600 }}>
                     {scoreLabel(pct)}</div>
                 </div>
@@ -600,7 +586,7 @@ export default function CoreAuditTool() {
                           gap:"8px", flexWrap:"wrap" }}>
                           <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:600,
                             fontSize:"14px" }}>{cat.label}</span>
-                          <span style={{ fontFamily:"'Poppins',sans-serif", fontSize:"8px",
+                          <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"8px",
                             letterSpacing:"1px", color:PHASE_COLOR[cat.phase],
                             background:PHASE_COLOR[cat.phase]+"18",
                             padding:"2px 6px", borderRadius:"3px" }}>{cat.phase}</span>
@@ -611,7 +597,7 @@ export default function CoreAuditTool() {
                           fontSize:"21px", color:col, lineHeight:1 }}>
                           {s.score}<span style={{ fontSize:"11px",
                             color:B.muted, fontWeight:400 }}>/20</span></div>
-                        <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"8px",
+                        <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"8px",
                           letterSpacing:"1.5px", color:col }}>{scoreLabel(p)}</div>
                       </div>
                       <div style={{ color:B.muted, fontSize:"13px",
@@ -626,7 +612,7 @@ export default function CoreAuditTool() {
                     {open && (
                       <div style={{ marginTop:"18px", paddingTop:"18px",
                         borderTop:`1px solid ${B.border}` }}>
-                        <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"9px",
+                        <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px",
                           letterSpacing:"2px", color:B.muted, marginBottom:"10px" }}>FINDINGS</div>
                         {s.findings.map((f,i) => (
                           <div key={i} style={{ display:"flex", gap:"10px",
@@ -639,7 +625,7 @@ export default function CoreAuditTool() {
                         ))}
                         <div style={{ background:col+"10", border:`1px solid ${col}28`,
                           borderRadius:"6px", padding:"12px 14px", marginTop:"4px" }}>
-                          <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"8px",
+                          <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"8px",
                             letterSpacing:"2px", color:col, marginBottom:"5px" }}>
                             C.O.R.E. RECOMMENDATION</div>
                           <div style={{ fontSize:"13px", color:B.offwhite,
@@ -656,7 +642,7 @@ export default function CoreAuditTool() {
               padding:"22px", borderTop:`1px solid ${B.border}` }}>
               <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700,
                 fontSize:"14px", marginBottom:"3px" }}>Stoke Foundry</div>
-              <div style={{ fontFamily:"'Poppins',sans-serif", fontSize:"10px",
+              <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"10px",
                 color:B.muted, letterSpacing:"1px" }}>
                 C.O.R.E. System™ · Capture · Optimize · Retain · Enhance</div>
             </div>
