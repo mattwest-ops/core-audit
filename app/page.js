@@ -239,7 +239,12 @@ export default function CoreAuditTool() {
     }
   };
 
-  const saveAudit = () => {
+ = () => {
+    if (!results) return const saveAudit = () => {
+    if (!results) return;
+    setSaveStatus("saving");
+    try {
+     const saveAudit = async () => {
     if (!results) return;
     setSaveStatus("saving");
     try {
@@ -248,6 +253,14 @@ export default function CoreAuditTool() {
       const updated = [entry, ...savedAudits].slice(0,50);
       localStorage.setItem("core_audits", JSON.stringify(updated));
       setSavedAudits(updated);
+
+      // Write to the Google Sheet database
+      await fetch("https://script.google.com/macros/s/AKfycbzJGcaN5-QbTdFBlxyl1OteDCzq_C3aOIsg-WanjGoGsHvInckjoeHXzY7L9ZbA_OiI/exec", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(results),
+      });
+
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus(null), 2500);
     } catch(_) {
@@ -256,8 +269,7 @@ export default function CoreAuditTool() {
     }
   };
 
-  const printLeaveBehind = () => {
-    if (!results) return;
+  const printLeaveBehind ;
     const html = buildLeaveBehindHTML(results);
     const win  = window.open("", "_blank");
     win.document.write(html);
