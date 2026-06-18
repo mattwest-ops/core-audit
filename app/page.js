@@ -239,12 +239,7 @@ export default function CoreAuditTool() {
     }
   };
 
- = () => {
-    if (!results) return const saveAudit = () => {
-    if (!results) return;
-    setSaveStatus("saving");
-    try {
-     const saveAudit = async () => {
+  const saveAudit = async () => {
     if (!results) return;
     setSaveStatus("saving");
     try {
@@ -269,7 +264,8 @@ export default function CoreAuditTool() {
     }
   };
 
-  const printLeaveBehind ;
+  const printLeaveBehind = () => {
+    if (!results) return;
     const html = buildLeaveBehindHTML(results);
     const win  = window.open("", "_blank");
     win.document.write(html);
