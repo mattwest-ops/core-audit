@@ -250,9 +250,10 @@ export default function CoreAuditTool() {
       setSavedAudits(updated);
 
       // Write to the Google Sheet database
+      // NOTE: text/plain avoids a CORS preflight that Apps Script doesn't handle
       await fetch("https://script.google.com/macros/s/AKfycbzJGcaN5-QbTdFBlxyl1OteDCzq_C3aOIsg-WanjGoGsHvInckjoeHXzY7L9ZbA_OiI/exec", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(results),
       });
 
