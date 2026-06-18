@@ -52,7 +52,7 @@ const AUDIT_TOOL = {
       location: { type: "string" },
       auditDate: { type: "string" },
       summary: { type: "string", description: "2-3 sentences on overall Google presence" },
-      callHook: { type: "string", description: "1 Google-specific sentence to open the call with" },
+      callHook: { type: "string", description: "1 punchy sentence citing their actual C.O.R.E. score, their single worst gap, and a named local competitor ranking ahead of them — written as a cold email opener, not a phone script. Never start with 'We noticed'." },
       scores: {
         type: "object",
         required: ["gbp","reviews","visibility","conversion","competitive"],
@@ -100,7 +100,7 @@ function buildLeaveBehindHTML(r) {
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>C.O.R.E. Audit — ${r.practiceName}</title>
+<title>C.O.R.E. Audit — ${r.businessName || r.practiceName}</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
