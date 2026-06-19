@@ -52,7 +52,7 @@ const AUDIT_TOOL = {
       location: { type: "string" },
       auditDate: { type: "string" },
       summary: { type: "string", description: "2-3 sentences on overall Google presence" },
-      callHook: { type: "string", description: "1 punchy sentence citing their actual C.O.R.E. score, their single worst gap, and a named local competitor ranking ahead of them — written as a cold email opener, not a phone script. Never start with 'We noticed'." },
+      callHook: { type: "string", description: "1-2 punchy sentences citing their actual C.O.R.E. score, their single worst gap, and a named local competitor ranking ahead of them — then explicitly connect that gap to lost revenue or lost patients (e.g. 'every patient searching for X is booking with [competitor] instead'). Must frame the problem as a business cost, not just a visibility fact. Written as a cold email opener, not a phone script. Never start with 'We noticed'." },
       scores: {
         type: "object",
         required: ["gbp","reviews","visibility","conversion","competitive"],
@@ -230,7 +230,7 @@ export default function CoreAuditTool() {
       // Extract the submit_audit tool call input
       const toolUse = (data.content||[]).find(b => b.type==="tool_use" && b.name==="submit_audit");
       if (!toolUse) throw new Error("Audit tool not called. Response: " + JSON.stringify(data.content||[]).slice(0,200));
-      setResults(toolUse.input);
+      setResults({ ...toolUse.input, website: form.website });
       setStage("results");
     } catch(err) {
       clearInterval(interval);
