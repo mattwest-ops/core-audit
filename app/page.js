@@ -39,7 +39,7 @@ WEBSITE (start 20): -5 no CTA, -4 no booking form, -4 not mobile, -3 no trust si
 
 COMPETITIVE: name top 2-3 competitors ahead in local search. Check for Sponsored ads. In Pack+no ads=15-18, In Pack+ads=10-14, Not in Pack+no ads=6-9, Not in Pack+ads=0-5.
 
-Run max 3 searches then call submit_audit immediately.`;
+Run max 5 searches then call submit_audit immediately. Always search for the business's GBP directly before scoring — never assume review count or GBP status without a search result confirming it.`;
 
 const AUDIT_TOOL = {
   name: "submit_audit",
@@ -52,7 +52,7 @@ const AUDIT_TOOL = {
       location: { type: "string" },
       auditDate: { type: "string" },
       summary: { type: "string", description: "2-3 sentences on overall Google presence" },
-      callHook: { type: "string", description: "1-2 punchy sentences citing their actual C.O.R.E. score, their single worst gap, and a named local competitor ranking ahead of them — then explicitly connect that gap to lost revenue or lost patients (e.g. 'every patient searching for X is booking with [competitor] instead'). Must frame the problem as a business cost, not just a visibility fact. Written as a cold email opener, not a phone script. Never start with 'We noticed'." },
+      callHook: { type: "string", description: "2-3 sentences that open with a specific opportunity this business is positioned to capture — something concrete and local (a search position, a customer segment, a gap a competitor hasn't closed). Name one real competitor as a benchmark, not a threat. Close with a natural, low-pressure question or observation that invites a reply. No mention of scores, audits, frameworks, or Stoke Foundry. No jargon. Written the way a knowledgeable local contact would write it — direct, specific, human. Never start with 'We noticed', 'I came across', or any variation of 'we ran an audit on you'." },
       scores: {
         type: "object",
         required: ["gbp","reviews","visibility","conversion","competitive"],
@@ -207,14 +207,14 @@ export default function CoreAuditTool() {
       setLoadingMsg(LOADING_MESSAGES[idx]);
     }, 3000);
     try {
-      const userMsg = `Audit this local business:\nName: ${form.name}\nLocation: ${form.location}\nWebsite: ${form.website || "unknown — search for it"}\n\nRun a MAXIMUM of 3 web searches total. Search only for: (1) their Google Business Profile and reviews, (2) their website, (3) local competitors. Then immediately output the JSON.`;
+      const userMsg = `Audit this local business:\nName: ${form.name}\nLocation: ${form.location}\nWebsite: ${form.website || "unknown — search for it"}\n\nRun up to 5 web searches. You MUST search for and confirm: (1) their Google Business Profile — actual review count and rating as shown on Google, (2) their website and conversion signals, (3) local search visibility for "[location] [business type]", (4) top local competitors. Do NOT estimate or assume review counts — only report what search results confirm. Then immediately call submit_audit.`;
 
       const res = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 2000,
+          model: "claude-sonnet-4-6",
+          max_tokens: 4000,
           system: SYSTEM_PROMPT,
           tools: [
             { type:"web_search_20250305", name:"web_search" },
